@@ -44,6 +44,7 @@ Calcul du skew en faisant varier le strike $K \in [0.7 S_0,\ 1.5 S_0]$ :
 - Pour chaque $K$, on price via `Heston_MC` puis on inverse par bissection
 - Tracé de $\sigma_{\text{impl}}(K / S_0)$ — reproduction du smile asymétrique (skew négatif pour $\rho < 0$)
 
+
 ---
 
 ## Concepts clés
