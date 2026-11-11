@@ -1,78 +1,58 @@
-# Volatilité Implicite & Modèle de Heston 📉
+# Volatilité implicite et modèle de Heston
 
-Extraction de la volatilité implicite à partir de prix de marché, et simulation du smile de volatilité via le modèle de Heston à volatilité stochastique.
+Projet réalisé en M2 ISIFAR (Université Paris Cité). On calcule d'abord la volatilité implicite d'un call à partir de son prix, puis on simule le modèle de Heston par Monte Carlo pour retrouver le smile de volatilité qu'il produit.
 
----
+Tout le code est dans `heston.ipynb`.
 
-## Contenu
+## 1. Volatilité implicite
 
-### `heston.ipynb`
+Étant donné un prix observé $C$, on cherche la volatilité $\sigma$ telle que le prix de Black-Scholes soit égal à $C$. Deux méthodes sont codées :
 
-#### 1. Volatilité implicite
-
-Deux algorithmes d'inversion de la formule Black-Scholes pour extraire $\sigma_{\text{impl}}$ à partir d'un prix observé $C_{\text{mkt}}$ :
-
-| Méthode | Description |
+| Fonction | Méthode |
 |---|---|
-| `vol_impli_newton` | Méthode de Newton–Raphson (convergence quadratique via vega) |
-| `vol_impli_bisection` | Méthode de bissection (convergence garantie sur $[\sigma_{\min}, \sigma_{\max}]$) |
+| `vol_impli_newton` | Newton-Raphson, en utilisant la vega comme dérivée |
+| `vol_impli_bisection` | Dichotomie : on encadre d'abord la solution en doublant ou divisant $\sigma$ par 2, puis on coupe l'intervalle en deux |
 
-#### 2. Modèle de Heston — Monte Carlo
+Test : on calcule le prix d'un call ($S_0 = 10$, $K = 6$, $T = 1$, $r = 0.05$, $\sigma = 0.2$), puis on inverse. La dichotomie retrouve $\sigma \approx 0.19999$.
 
-Simulation par schéma d'Euler du système d'EDS couplées :
+## 2. Simulation du modèle de Heston
 
-$$dS_t = r S_t dt + \sqrt{v_t} S_t dW_t^S$$
+Le modèle s'écrit
 
-$$dv_t = \kappa(\theta - v_t) dt + \xi \sqrt{v_t} dW_t^v$$
+$$dS_t = r S_t\, dt + \sqrt{v_t}\, S_t\, dW_t$$
 
-$$d\langle W^S, W^v \rangle_t = \rho \, dt$$
+$$dv_t = \kappa(\theta - v_t)\, dt + \xi \sqrt{v_t}\, dB_t$$
 
-Paramètres utilisés :
+où les deux browniens $W$ et $B$ ont une corrélation $\rho$.
 
-| Paramètre | Valeur | Signification |
+On discrétise avec un schéma d'Euler sur 5 000 pas de temps et 10 000 trajectoires. Comme ce schéma peut rendre la variance négative, on la remplace par 0 à chaque pas.
+
+| Paramètre | Valeur | Rôle |
 |---|---|---|
-| $\kappa$ | $0.5$ | Vitesse de retour à la moyenne |
-| $\theta$ | $0.04$ | Variance long terme |
-| $\xi$ | $0.3$ | Volatilité de la volatilité |
-| $\rho$ | $-0.5$ | Corrélation spot / variance |
-| $v_0$ | $0.04$ | Variance initiale |
+| $v_0$ | 0.04 | variance initiale (volatilité de 20 %) |
+| $\theta$ | 0.04 | variance de long terme |
+| $\kappa$ | 0.5 | vitesse de retour vers $\theta$ |
+| $\xi$ | 0.3 | volatilité de la variance |
+| $\rho$ | -0.5 | corrélation entre le spot et la variance |
 
-#### 3. Smile de volatilité implicite
+Pour un call à la monnaie ($S_0 = K = 10$, $T = 1$, $r = 0.05$), on obtient 1.045 avec Black-Scholes ($\sigma = 0.2$) et 1.025 avec Heston.
 
-Calcul du skew en faisant varier le strike $K \in [0.7 S_0,\ 1.5 S_0]$ :
+## 3. Smile de volatilité
 
-- Pour chaque $K$, on price via `Heston_MC` puis on inverse par bissection
-- Tracé de $\sigma_{\text{impl}}(K / S_0)$ — reproduction du smile asymétrique (skew négatif pour $\rho < 0$)
+On fait varier le strike de $0.70\, S_0$ à $1.45\, S_0$ par pas de $0.05\, S_0$. Pour chaque strike, on calcule le prix avec Heston, puis on en déduit la volatilité implicite par dichotomie.
 
+La volatilité implicite passe d'environ 26 % pour $K = 0.7\, S_0$ à environ 17 % autour de $K = 1.3\, S_0$, puis remonte légèrement. On retrouve le skew attendu quand $\rho$ est négatif : les baisses du spot s'accompagnent d'une hausse de la volatilité, ce qui renchérit les strikes bas.
 
----
-
-## Concepts clés
-
-- **Volatilité implicite** : inversion numérique de Black-Scholes
-- **Modèle de Heston** : variance stochastique, corrélation spot/vol
-- **Smile / skew de volatilité** : asymétrie induite par $\rho < 0$
-- Schéma d'**Euler-Maruyama** pour la discrétisation des EDS couplées
-
----
-
-## Stack
+## Utilisation
 
 ```python
-langages   = ["Python"]
-librairies = ["numpy", "scipy", "matplotlib"]
-```
+# volatilité implicite à partir d'un prix
+C = BS(S0=10, K=10, T=1, r=0.05, sigma=0.2)
+sigma_impl = vol_impli_bisection(S0=10, K=10, T=1, r=0.05, C=C)
 
----
-
-## Usage
-
-```python
-# Vol implicite à partir d'un prix de marché
-C_mkt = BS(S0=10, K=10, T=1, r=0.05, sigma=0.2)
-sigma_impl = vol_impli_bisection(S0=10, K=10, T=1, r=0.05, C=C_mkt)
-
-# Pricing Heston Monte Carlo
+# prix d'un call dans le modèle de Heston
 prix = Heston_MC(S0=10, v0=0.04, K=10, T=1, r=0.05,
                  kappa=0.5, theta=0.04, xi=0.3, rho=-0.5)
 ```
+
+Bibliothèques : numpy, scipy, matplotlib.
